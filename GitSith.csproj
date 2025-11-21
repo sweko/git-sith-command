@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>git-sith</AssemblyName>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>git-sith</ToolCommandName>
+    
+    <!-- NuGet Package Metadata -->
+    <PackageId>GitSith</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>Wekoslav Stefanovski</Authors>
+    <Description>A developer-oriented Git power tool for common tasks. Because the dark side has better tools.</Description>
+    <PackageTags>git;cli;tool;gitignore</PackageTags>
+    <PackageProjectUrl>https://github.com/sweko/git-sith-command</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/sweko/git-sith-command</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/RELEASE_NOTES.md"))</PackageReleaseNotes>
+    
+    <!-- Optimize for size -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>link</TrimMode>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="RELEASE_NOTES.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+  </ItemGroup>
+
+</Project>
