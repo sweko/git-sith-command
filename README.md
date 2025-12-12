@@ -17,8 +17,70 @@ git sith ignore node
 # Add multiple templates
 git sith ignore node python visualstudio
 
+# Use aliases (csharp → Dotnet, js → Node, etc.)
+git sith ignore csharp js
+
 # List all available templates
 git sith ignore --list
+
+# Show available aliases
+git sith ignore --aliases
+
+# Embrace the dark side (ignore everything)
+git sith ignore
+```
+
+### `git sith force-push` / `git sith push`
+
+Stage all changes, commit with a message, and push to remote in one command. Perfect for quick iterations.
+
+**Usage:**
+
+```bash
+# Commit with a custom message and push
+git sith push "Fixed the bug"
+
+# Let the dark side choose your commit message
+git sith push
+# Uses random Sith quotes like "Peace is a lie, there is only passion."
+```
+
+**Aliases:** `force`, `force-push`, `push`
+
+### `git sith purge` / `git sith order-66`
+
+Remove a file from git history completely - the nuclear option. Rewrites history to eliminate all traces of a file.
+
+**Usage:**
+
+```bash
+# Purge a file from all history
+git sith purge secrets.txt
+
+# Use the Order 66 alias
+git sith order-66 passwords.env
+
+# With confirmation prompt (for the weak-willed)
+git sith purge secrets.txt --confirm
+```
+
+**Aliases:** `purge`, `obliterate`, `destroy`, `66`, `order-66`, `damnatio-memoriae`, `memory-hole`
+
+⚠️ **Warning:** This rewrites git history. After purging, you'll need to force push and collaborators will need to re-clone.
+
+### `git sith help`
+
+Show help for git-sith commands. Works around the issue where `git sith --help` is intercepted by Git itself.
+
+**Usage:**
+
+```bash
+# Show all commands
+git sith help
+
+# Show help for a specific command
+git sith help ignore
+git sith help purge
 ```
 
 ## Installation
@@ -79,10 +141,10 @@ dotnet test
 Future commands being considered:
 
 - `git sith wip` - Quick WIP commits
-- `git sith undo` - Safe undo operations
+- `git sith undo` - Safe undo operations  
 - `git sith clean` - Interactive cleanup
-- `git sith prune` - Clean up branches
 - `git sith stats` - Repository statistics
+- `git sith alias` - Manage git aliases with Sith flair
 
 ## Contributing
 
