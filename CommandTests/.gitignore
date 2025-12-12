@@ -195,3 +195,15 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+# The dark side of .gitignore
+# "Everything that has transpired has done so according to my design."
+#   - Emperor Palpatine
+#
+# This repository has embraced the dark side.
+# All files are ignored. There is no hope. Only the void remains.
+
+# Ignore everything
+*
+
+# But not .gitignore itself (even the Sith have rules)
+!.gitignore
