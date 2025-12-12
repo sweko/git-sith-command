@@ -1,5 +1,8 @@
 using System.CommandLine;
+using System.CommandLine.Builder;
+using System.CommandLine.Parsing;
 using GitSith.Commands;
+using GitSith.Services;
 
 namespace GitSith;
 
@@ -15,9 +18,18 @@ class Program
         // Add the force-push command
         rootCommand.AddCommand(ForcePushCommand.Create());
 
+        // Add the purge command
+        rootCommand.AddCommand(PurgeCommand.Create());
+
         // Add the help command
         rootCommand.AddCommand(HelpCommand.Create(rootCommand));
 
-        return await rootCommand.InvokeAsync(args);
+        var parser = new CommandLineBuilder(rootCommand)
+            .UseLocalizationResources(new SithLocalizationResources())
+            .UseAliasHelp(rootCommand)
+            .UseDefaults()
+            .Build();
+
+        return await parser.InvokeAsync(args);
     }
 }

@@ -10,9 +10,10 @@ internal partial class GitIgnoreJsonContext : JsonSerializerContext
 {
 }
 
-public class GitIgnoreService
+public class GitIgnoreService : IDisposable
 {
     private readonly HttpClient _httpClient;
+    private bool _disposed;
     private const string GitHubApiBase = "https://api.github.com/gitignore";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -269,5 +270,15 @@ public class GitIgnoreService
 
         [JsonPropertyName("source")]
         public string Source { get; set; } = string.Empty;
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _httpClient.Dispose();
+            _disposed = true;
+        }
+        GC.SuppressFinalize(this);
     }
 }

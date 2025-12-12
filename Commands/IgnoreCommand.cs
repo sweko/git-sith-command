@@ -1,5 +1,6 @@
 using System.CommandLine;
 using GitSith.Services;
+using static GitSith.Services.GitCommandService;
 
 namespace GitSith.Commands;
 
@@ -29,7 +30,7 @@ public static class IgnoreCommand
 
         command.SetHandler(async (templates, list, aliases) =>
         {
-            var service = new GitIgnoreService();
+            using var service = new GitIgnoreService();
 
             if (aliases)
             {
@@ -71,7 +72,7 @@ public static class IgnoreCommand
             !.gitignore
             """;
 
-        await File.AppendAllTextAsync(gitignorePath, content + Environment.NewLine);
+        await File.WriteAllTextAsync(gitignorePath, content + Environment.NewLine);
         
         Console.WriteLine("The dark side clouds everything...");
         Console.WriteLine($"✓ Created {gitignorePath} that ignores all files");
@@ -182,46 +183,5 @@ public static class IgnoreCommand
             Console.WriteLine($"\n✗ Failed to fetch: {string.Join(", ", failedTemplates)}");
             Console.WriteLine("  Run 'git sith ignore --list' to see available templates.");
         }
-    }
-
-    private static async Task<GitCommandResult> RunGitCommandAsync(params string[] args)
-    {
-        var startInfo = new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = "git",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        foreach (var arg in args)
-        {
-            startInfo.ArgumentList.Add(arg);
-        }
-
-        using var process = new System.Diagnostics.Process { StartInfo = startInfo };
-        process.Start();
-
-        var output = await process.StandardOutput.ReadToEndAsync();
-        var error = await process.StandardError.ReadToEndAsync();
-
-        await process.WaitForExitAsync();
-
-        return new GitCommandResult
-        {
-            Success = process.ExitCode == 0,
-            Output = output,
-            Error = error,
-            ExitCode = process.ExitCode
-        };
-    }
-
-    private class GitCommandResult
-    {
-        public bool Success { get; set; }
-        public string Output { get; set; } = string.Empty;
-        public string Error { get; set; } = string.Empty;
-        public int ExitCode { get; set; }
     }
 }

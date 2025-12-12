@@ -1,5 +1,5 @@
 using System.CommandLine;
-using System.Diagnostics;
+using static GitSith.Services.GitCommandService;
 
 namespace GitSith.Commands;
 
@@ -115,7 +115,7 @@ public static class PurgeCommand
             Console.WriteLine("║  2. Force push to remote: git push --force --all             ║");
             Console.WriteLine("║  3. Tell collaborators to re-clone the repository            ║");
             Console.WriteLine("║                                                              ║");
-            Console.WriteLine("║  \"The circle is now complete.\"                               ║");
+            Console.WriteLine("║  \"The circle is now complete.\"                             ║");
             Console.WriteLine("╚══════════════════════════════════════════════════════════════╝");
         }
         else
@@ -132,7 +132,7 @@ public static class PurgeCommand
         Console.WriteLine();
 
         var result = await RunGitCommandInDirAsync(repoRoot, "filter-repo", "--invert-paths", "--path", filePath, "--force");
-        
+
         if (!result.Success)
         {
             Console.WriteLine($"Error: {result.Error}");
@@ -192,74 +192,5 @@ public static class PurgeCommand
         await RunGitCommandInDirAsync(repoRoot, "gc", "--prune=now", "--aggressive");
 
         return true;
-    }
-
-    private static async Task<bool> CheckCommandExistsAsync(string command)
-    {
-        try
-        {
-            var result = await RunCommandAsync(command, null, "--version");
-            return result.Success;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static async Task<GitCommandResult> RunGitCommandAsync(params string[] args)
-    {
-        return await RunCommandAsync("git", null, args);
-    }
-
-    private static async Task<GitCommandResult> RunGitCommandInDirAsync(string workingDirectory, params string[] args)
-    {
-        return await RunCommandAsync("git", workingDirectory, args);
-    }
-
-    private static async Task<GitCommandResult> RunCommandAsync(string command, string? workingDirectory, params string[] args)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = command,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        if (!string.IsNullOrEmpty(workingDirectory))
-        {
-            startInfo.WorkingDirectory = workingDirectory;
-        }
-
-        foreach (var arg in args)
-        {
-            startInfo.ArgumentList.Add(arg);
-        }
-
-        using var process = new Process { StartInfo = startInfo };
-        process.Start();
-
-        var output = await process.StandardOutput.ReadToEndAsync();
-        var error = await process.StandardError.ReadToEndAsync();
-
-        await process.WaitForExitAsync();
-
-        return new GitCommandResult
-        {
-            Success = process.ExitCode == 0,
-            Output = output,
-            Error = error,
-            ExitCode = process.ExitCode
-        };
-    }
-
-    private class GitCommandResult
-    {
-        public bool Success { get; set; }
-        public string Output { get; set; } = string.Empty;
-        public string Error { get; set; } = string.Empty;
-        public int ExitCode { get; set; }
     }
 }

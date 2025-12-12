@@ -1,5 +1,6 @@
 using System.CommandLine;
-using System.Diagnostics;
+using GitSith.Services;
+using static GitSith.Services.GitCommandService;
 
 namespace GitSith.Commands;
 
@@ -33,17 +34,22 @@ public static class ForcePushCommand
             Arity = ArgumentArity.ZeroOrMore
         };
 
-        command.AddArgument(messageArgument);
+        var weaklingOption = new Option<bool>(
+            ["--weakling", "-w"],
+            "Use a regular push instead of force push (for the faint of heart)");
 
-        command.SetHandler(async (messageParts) =>
+        command.AddArgument(messageArgument);
+        command.AddOption(weaklingOption);
+
+        command.SetHandler(async (messageParts, weakling) =>
         {
-            await ExecuteForcePushAsync(messageParts);
-        }, messageArgument);
+            await ExecuteForcePushAsync(messageParts, weakling);
+        }, messageArgument, weaklingOption);
 
         return command;
     }
 
-    private static async Task ExecuteForcePushAsync(string[] messageParts)
+    private static async Task ExecuteForcePushAsync(string[] messageParts, bool weakling)
     {
         // Combine all message parts into a single message, or pick a random Sith quote
         var message = string.Join(" ", messageParts);
@@ -97,58 +103,30 @@ public static class ForcePushCommand
             Console.WriteLine("✓ Changes committed");
         }
 
-        // Step 3: git push
-        Console.WriteLine("Pushing to remote...");
-        var pushResult = await RunGitCommandAsync("push");
+        // Step 3: git push (force by default, unless --weakling)
+        var pushMode = weakling ? "regular" : "force";
+        Console.WriteLine($"Pushing to remote ({pushMode})...");
+        
+        GitCommandResult pushResult;
+        if (weakling)
+        {
+            pushResult = await RunGitCommandAsync("push");
+        }
+        else
+        {
+            pushResult = await RunGitCommandAsync("push", "--force");
+        }
+        
         if (!pushResult.Success)
         {
             Console.WriteLine($"Error pushing: {pushResult.Error}");
             return;
         }
-        Console.WriteLine("✓ Pushed to remote");
+        Console.WriteLine($"✓ Pushed to remote ({pushMode})");
 
         Console.WriteLine();
-        Console.WriteLine("Force push completed successfully!");
-    }
-
-    private static async Task<GitCommandResult> RunGitCommandAsync(params string[] args)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "git",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        foreach (var arg in args)
-        {
-            startInfo.ArgumentList.Add(arg);
-        }
-
-        using var process = new Process { StartInfo = startInfo };
-        process.Start();
-
-        var output = await process.StandardOutput.ReadToEndAsync();
-        var error = await process.StandardError.ReadToEndAsync();
-
-        await process.WaitForExitAsync();
-
-        return new GitCommandResult
-        {
-            Success = process.ExitCode == 0,
-            Output = output,
-            Error = error,
-            ExitCode = process.ExitCode
-        };
-    }
-
-    private class GitCommandResult
-    {
-        public bool Success { get; set; }
-        public string Output { get; set; } = string.Empty;
-        public string Error { get; set; } = string.Empty;
-        public int ExitCode { get; set; }
+        Console.WriteLine(weakling 
+            ? "Push completed. Your restraint is... noted." 
+            : "Force push completed. The dark side grows stronger!");
     }
 }
