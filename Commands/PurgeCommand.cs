@@ -1,0 +1,265 @@
+using System.CommandLine;
+using System.Diagnostics;
+
+namespace GitSith.Commands;
+
+public static class PurgeCommand
+{
+    public static Command Create()
+    {
+        var command = new Command("purge", "Remove a file from git history completely - this is the nuclear option");
+        command.AddAlias("obliterate");
+        command.AddAlias("destroy");
+        command.AddAlias("66");
+        command.AddAlias("order-66");
+        command.AddAlias("damnatio-memoriae");
+        command.AddAlias("memory-hole");
+
+        var fileArgument = new Argument<string>(
+            name: "file",
+            description: "The file path to purge from history");
+
+        var confirmOption = new Option<bool>(
+            ["--confirm", "-c", "--padawan", "--weakling", "--jedi"],
+            "Show confirmation prompt before proceeding (for the weak-willed)");
+
+        command.AddArgument(fileArgument);
+        command.AddOption(confirmOption);
+
+        command.SetHandler(async (file, confirm) =>
+        {
+            await ExecutePurgeAsync(file, confirm);
+        }, fileArgument, confirmOption);
+
+        return command;
+    }
+
+    private static async Task ExecutePurgeAsync(string filePath, bool confirm)
+    {
+        // Check if we're in a git repository and get the root
+        var repoCheck = await RunGitCommandAsync("rev-parse", "--is-inside-work-tree");
+        if (!repoCheck.Success || repoCheck.Output.Trim() != "true")
+        {
+            Console.WriteLine("Error: Not in a git repository.");
+            return;
+        }
+
+        // Get the repository root directory
+        var repoRootResult = await RunGitCommandAsync("rev-parse", "--show-toplevel");
+        if (!repoRootResult.Success)
+        {
+            Console.WriteLine("Error: Could not determine repository root.");
+            return;
+        }
+        var repoRoot = repoRootResult.Output.Trim();
+
+        // Calculate the relative path from repo root
+        var currentDir = Directory.GetCurrentDirectory();
+        var relativePath = Path.GetRelativePath(repoRoot, Path.Combine(currentDir, filePath));
+        // Normalize to forward slashes for git
+        relativePath = relativePath.Replace("\\", "/");
+
+        // Check if git-filter-repo is available (preferred method)
+        var hasFilterRepo = await CheckCommandExistsAsync("git-filter-repo");
+
+        Console.WriteLine();
+        Console.WriteLine($"Purging '{relativePath}' from history...");
+        Console.WriteLine($"Method: {(hasFilterRepo ? "git-filter-repo" : "git filter-branch")}");
+        Console.WriteLine();
+
+        if (confirm)
+        {
+            Console.WriteLine("╔══════════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║  You have chosen the path of hesitation.                     ║");
+            Console.WriteLine("╠══════════════════════════════════════════════════════════════╣");
+            Console.WriteLine("║  This command will:                                          ║");
+            Console.WriteLine("║  • Remove the file from ALL commits in history               ║");
+            Console.WriteLine("║  • Rewrite the entire git history                            ║");
+            Console.WriteLine("║  • Require a force push to update remotes                    ║");
+            Console.WriteLine("╚══════════════════════════════════════════════════════════════╝");
+            Console.WriteLine();
+            Console.Write("Type 'DO IT' to confirm: ");
+            var confirmation = Console.ReadLine();
+            
+            if (confirmation != "DO IT")
+            {
+                Console.WriteLine();
+                Console.WriteLine("\"You have failed me for the last time.\"");
+                Console.WriteLine("Operation cancelled.");
+                return;
+            }
+            Console.WriteLine();
+        }
+
+        Console.WriteLine("\"Execute Order 66...\"");
+        Console.WriteLine();
+
+        bool success;
+        if (hasFilterRepo)
+        {
+            success = await PurgeWithFilterRepoAsync(relativePath, repoRoot);
+        }
+        else
+        {
+            success = await PurgeWithFilterBranchAsync(relativePath, repoRoot);
+        }
+
+        if (success)
+        {
+            Console.WriteLine();
+            Console.WriteLine("╔══════════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║  ✓ The file has been purged from history                     ║");
+            Console.WriteLine("╠══════════════════════════════════════════════════════════════╣");
+            Console.WriteLine("║  Next steps:                                                 ║");
+            Console.WriteLine("║  1. Verify the changes with: git log --all -- <filepath>     ║");
+            Console.WriteLine("║  2. Force push to remote: git push --force --all             ║");
+            Console.WriteLine("║  3. Tell collaborators to re-clone the repository            ║");
+            Console.WriteLine("║                                                              ║");
+            Console.WriteLine("║  \"The circle is now complete.\"                               ║");
+            Console.WriteLine("╚══════════════════════════════════════════════════════════════╝");
+        }
+        else
+        {
+            Console.WriteLine();
+            Console.WriteLine("\"I find your lack of faith disturbing.\"");
+            Console.WriteLine("The purge operation failed. Check the error messages above.");
+        }
+    }
+
+    private static async Task<bool> PurgeWithFilterRepoAsync(string filePath, string repoRoot)
+    {
+        Console.WriteLine("Using git-filter-repo to purge file...");
+        Console.WriteLine();
+
+        var result = await RunGitCommandInDirAsync(repoRoot, "filter-repo", "--invert-paths", "--path", filePath, "--force");
+        
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {result.Error}");
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Output))
+        {
+            Console.WriteLine(result.Output);
+        }
+
+        return true;
+    }
+
+    private static async Task<bool> PurgeWithFilterBranchAsync(string filePath, string repoRoot)
+    {
+        Console.WriteLine("Using git filter-branch to purge file...");
+        Console.WriteLine("(Consider installing git-filter-repo for better performance)");
+        Console.WriteLine();
+
+        // Path is already normalized with forward slashes
+        var result = await RunGitCommandInDirAsync(
+            repoRoot,
+            "filter-branch",
+            "--force",
+            "--index-filter",
+            $"git rm --cached --ignore-unmatch \"{filePath}\"",
+            "--prune-empty",
+            "--tag-name-filter", "cat",
+            "--", "--all");
+
+        if (!result.Success)
+        {
+            // filter-branch outputs to stderr even on success sometimes
+            if (result.Error.Contains("Ref 'refs/heads/") || result.Error.Contains("WARNING"))
+            {
+                Console.WriteLine(result.Error);
+                return true;
+            }
+            Console.WriteLine($"Error: {result.Error}");
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Output))
+        {
+            Console.WriteLine(result.Output);
+        }
+
+        // Clean up the backup refs created by filter-branch
+        Console.WriteLine("Cleaning up backup refs...");
+        await RunGitCommandInDirAsync(repoRoot, "for-each-ref", "--format=%(refname)", "refs/original/", 
+            "|", "xargs", "-n", "1", "git", "update-ref", "-d");
+        
+        // Force garbage collection
+        Console.WriteLine("Running garbage collection...");
+        await RunGitCommandInDirAsync(repoRoot, "reflog", "expire", "--expire=now", "--all");
+        await RunGitCommandInDirAsync(repoRoot, "gc", "--prune=now", "--aggressive");
+
+        return true;
+    }
+
+    private static async Task<bool> CheckCommandExistsAsync(string command)
+    {
+        try
+        {
+            var result = await RunCommandAsync(command, null, "--version");
+            return result.Success;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<GitCommandResult> RunGitCommandAsync(params string[] args)
+    {
+        return await RunCommandAsync("git", null, args);
+    }
+
+    private static async Task<GitCommandResult> RunGitCommandInDirAsync(string workingDirectory, params string[] args)
+    {
+        return await RunCommandAsync("git", workingDirectory, args);
+    }
+
+    private static async Task<GitCommandResult> RunCommandAsync(string command, string? workingDirectory, params string[] args)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = command,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        if (!string.IsNullOrEmpty(workingDirectory))
+        {
+            startInfo.WorkingDirectory = workingDirectory;
+        }
+
+        foreach (var arg in args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        using var process = new Process { StartInfo = startInfo };
+        process.Start();
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        var error = await process.StandardError.ReadToEndAsync();
+
+        await process.WaitForExitAsync();
+
+        return new GitCommandResult
+        {
+            Success = process.ExitCode == 0,
+            Output = output,
+            Error = error,
+            ExitCode = process.ExitCode
+        };
+    }
+
+    private class GitCommandResult
+    {
+        public bool Success { get; set; }
+        public string Output { get; set; } = string.Empty;
+        public string Error { get; set; } = string.Empty;
+        public int ExitCode { get; set; }
+    }
+}
