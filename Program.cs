@@ -12,6 +12,12 @@ class Program
         // Add the ignore command
         rootCommand.AddCommand(IgnoreCommand.Create());
 
+        // Add the force-push command
+        rootCommand.AddCommand(ForcePushCommand.Create());
+
+        // Add the help command
+        rootCommand.AddCommand(HelpCommand.Create(rootCommand));
+
         return await rootCommand.InvokeAsync(args);
     }
 }
