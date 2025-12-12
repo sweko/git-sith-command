@@ -12,22 +12,30 @@ public static class IgnoreCommand
         // Argument for template names
         var templatesArgument = new Argument<string[]>(
             name: "templates",
-            description: "One or more template names to add (e.g., node, python, visualstudio)")
+            description: "One or more template names to add (e.g., node, python, csharp)")
         {
             Arity = ArgumentArity.ZeroOrMore
         };
 
         // Option to list available templates
-        var listOption = new Option<bool>(["--list", "-l"], "List all available templates");
+        var listOption = new Option<bool>(["--list", "-l"], "List all available templates from GitHub");
+        
+        // Option to list aliases
+        var aliasesOption = new Option<bool>(["--aliases", "-a"], "List all available template aliases");
 
         command.AddArgument(templatesArgument);
         command.AddOption(listOption);
+        command.AddOption(aliasesOption);
 
-        command.SetHandler(async (templates, list) =>
+        command.SetHandler(async (templates, list, aliases) =>
         {
             var service = new GitIgnoreService();
 
-            if (list)
+            if (aliases)
+            {
+                ListAliases(service);
+            }
+            else if (list)
             {
                 await ListTemplatesAsync(service);
             }
@@ -37,17 +45,53 @@ public static class IgnoreCommand
             }
             else
             {
-                Console.WriteLine("Usage: git sith ignore <template> [<template2> ...]");
-                Console.WriteLine("       git sith ignore --list");
-                Console.WriteLine();
-                Console.WriteLine("Examples:");
-                Console.WriteLine("  git sith ignore node");
-                Console.WriteLine("  git sith ignore node python");
-                Console.WriteLine("  git sith ignore --list");
+                await IgnoreEverythingAsync();
             }
-        }, templatesArgument, listOption);
+        }, templatesArgument, listOption, aliasesOption);
 
         return command;
+    }
+
+    private static async Task IgnoreEverythingAsync()
+    {
+        const string gitignorePath = ".gitignore";
+        
+        var content = """
+            # The dark side of .gitignore
+            # "Everything that has transpired has done so according to my design."
+            #   - Emperor Palpatine
+            #
+            # This repository has embraced the dark side.
+            # All files are ignored. There is no hope. Only the void remains.
+
+            # Ignore everything
+            *
+
+            # But not .gitignore itself (even the Sith have rules)
+            !.gitignore
+            """;
+
+        await File.AppendAllTextAsync(gitignorePath, content + Environment.NewLine);
+        
+        Console.WriteLine("The dark side clouds everything...");
+        Console.WriteLine($"✓ Created {gitignorePath} that ignores all files");
+        Console.WriteLine();
+        Console.WriteLine("\"Your feeble skills are no match for the power of the dark side.\"");
+    }
+
+    private static void ListAliases(GitIgnoreService service)
+    {
+        Console.WriteLine("Available template aliases:");
+        Console.WriteLine(new string('-', 50));
+        
+        // Group aliases by their resolved template
+        var grouped = service.GetAliasesGroupedByTemplate();
+
+        foreach (var group in grouped)
+        {
+            var aliases = string.Join(", ", group.Select(kvp => kvp.Key).OrderBy(k => k));
+            Console.WriteLine($"  {group.Key,-20} ← {aliases}");
+        }
     }
 
     private static async Task ListTemplatesAsync(GitIgnoreService service)
@@ -88,10 +132,11 @@ public static class IgnoreCommand
     {
         const string gitignorePath = ".gitignore";
 
-        // Check if we're in a git repository
-        if (!Directory.Exists(".git"))
+        // Check if we're in a git repository (works from any subdirectory)
+        var repoCheck = await RunGitCommandAsync("rev-parse", "--is-inside-work-tree");
+        if (!repoCheck.Success || repoCheck.Output.Trim() != "true")
         {
-            Console.WriteLine("Error: Not a git repository. Run 'git init' first.");
+            Console.WriteLine("Error: Not in a git repository. Run 'git init' first.");
             return;
         }
 
@@ -102,13 +147,18 @@ public static class IgnoreCommand
 
         foreach (var template in templates)
         {
-            Console.Write($"  Fetching '{template}'... ");
+            var resolvedTemplate = service.ResolveTemplateName(template);
+            var displayName = template.Equals(resolvedTemplate, StringComparison.OrdinalIgnoreCase) 
+                ? template 
+                : $"{template} → {resolvedTemplate}";
             
-            var content = await service.GetTemplateContentAsync(template);
+            Console.Write($"  Fetching '{displayName}'... ");
+            
+            var content = await service.GetTemplateContentAsync(resolvedTemplate);
             
             if (content != null)
             {
-                contents.Add($"\n### {template} ###\n{content}");
+                contents.Add($"\n### {resolvedTemplate} ###\n{content}");
                 Console.WriteLine("✓");
             }
             else
@@ -132,5 +182,46 @@ public static class IgnoreCommand
             Console.WriteLine($"\n✗ Failed to fetch: {string.Join(", ", failedTemplates)}");
             Console.WriteLine("  Run 'git sith ignore --list' to see available templates.");
         }
+    }
+
+    private static async Task<GitCommandResult> RunGitCommandAsync(params string[] args)
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "git",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        foreach (var arg in args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        using var process = new System.Diagnostics.Process { StartInfo = startInfo };
+        process.Start();
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        var error = await process.StandardError.ReadToEndAsync();
+
+        await process.WaitForExitAsync();
+
+        return new GitCommandResult
+        {
+            Success = process.ExitCode == 0,
+            Output = output,
+            Error = error,
+            ExitCode = process.ExitCode
+        };
+    }
+
+    private class GitCommandResult
+    {
+        public bool Success { get; set; }
+        public string Output { get; set; } = string.Empty;
+        public string Error { get; set; } = string.Empty;
+        public int ExitCode { get; set; }
     }
 }
