@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using GitSith.Services;
 using static GitSith.Services.GitCommandService;
 
@@ -41,15 +42,18 @@ public static class ForcePushCommand
         command.AddArgument(messageArgument);
         command.AddOption(weaklingOption);
 
-        command.SetHandler(async (messageParts, weakling) =>
+        command.SetHandler(async (context) =>
         {
-            await ExecuteForcePushAsync(messageParts, weakling);
-        }, messageArgument, weaklingOption);
+            var messageParts = context.ParseResult.GetValueForArgument(messageArgument);
+            var weakling = context.ParseResult.GetValueForOption(weaklingOption);
+            var cancellationToken = context.GetCancellationToken();
+            await ExecuteForcePushAsync(messageParts, weakling, cancellationToken);
+        });
 
         return command;
     }
 
-    private static async Task ExecuteForcePushAsync(string[] messageParts, bool weakling)
+    private static async Task ExecuteForcePushAsync(string[] messageParts, bool weakling, CancellationToken cancellationToken = default)
     {
         // Combine all message parts into a single message, or pick a random Sith quote
         var message = string.Join(" ", messageParts);
@@ -63,7 +67,7 @@ public static class ForcePushCommand
         }
 
         // Check if we're in a git repository
-        var repoCheck = await RunGitCommandAsync("rev-parse", "--show-toplevel");
+        var repoCheck = await RunGitCommandAsync(cancellationToken, "rev-parse", "--show-toplevel");
         if (!repoCheck.Success)
         {
             Console.WriteLine("Error: Not in a git repository.");
@@ -74,7 +78,7 @@ public static class ForcePushCommand
 
         // Step 1: git add .
         Console.WriteLine("Staging all changes...");
-        var addResult = await RunGitCommandAsync("add", ".");
+        var addResult = await RunGitCommandAsync(cancellationToken, "add", ".");
         if (!addResult.Success)
         {
             Console.WriteLine($"Error staging changes: {addResult.Error}");
@@ -84,7 +88,7 @@ public static class ForcePushCommand
 
         // Step 2: git commit -m <message>
         Console.WriteLine($"Committing with message: \"{message}\"");
-        var commitResult = await RunGitCommandAsync("commit", "-m", message);
+        var commitResult = await RunGitCommandAsync(cancellationToken, "commit", "-m", message);
         if (!commitResult.Success)
         {
             // Check if it's just "nothing to commit"
@@ -110,11 +114,11 @@ public static class ForcePushCommand
         GitCommandResult pushResult;
         if (weakling)
         {
-            pushResult = await RunGitCommandAsync("push");
+            pushResult = await RunGitCommandAsync(cancellationToken, "push");
         }
         else
         {
-            pushResult = await RunGitCommandAsync("push", "--force");
+            pushResult = await RunGitCommandAsync(cancellationToken, "push", "--force");
         }
         
         if (!pushResult.Success)

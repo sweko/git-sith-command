@@ -21,6 +21,92 @@ public class GitIgnoreService : IDisposable
         TypeInfoResolver = GitIgnoreJsonContext.Default
     };
 
+    public GitIgnoreService()
+    {
+        _httpClient = new HttpClient();
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "git-sith");
+        _httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
+    }
+
+    public string ResolveTemplateName(string input)
+    {
+        return TemplateAliases.TryGetValue(input, out var resolved) ? resolved : input;
+    }
+
+    public IEnumerable<IGrouping<string, KeyValuePair<string, string>>> GetAliasesGroupedByTemplate()
+    {
+        return TemplateAliases
+            .GroupBy(kvp => kvp.Value)
+            .OrderBy(g => g.Key);
+    }
+
+    public async Task<List<string>> GetAvailableTemplatesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var templates = await _httpClient.GetFromJsonAsync($"{GitHubApiBase}/templates", GitIgnoreJsonContext.Default.ListString, cancellationToken);
+            return templates ?? [];
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("Operation cancelled.");
+            return [];
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching templates: {ex.Message}");
+            return [];
+        }
+    }
+
+    public async Task<string?> GetTemplateContentAsync(string templateName, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.GetFromJsonAsync(
+                $"{GitHubApiBase}/templates/{templateName}", 
+                GitIgnoreJsonContext.Default.GitIgnoreTemplate,
+                cancellationToken);
+            return response?.Source;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("Operation cancelled.");
+            return null;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            Console.WriteLine($"Template '{templateName}' not found.");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching template '{templateName}': {ex.Message}");
+            return null;
+        }
+    }
+
+    public class GitIgnoreTemplate
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("source")]
+        public string Source { get; set; } = string.Empty;
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _httpClient.Dispose();
+            _disposed = true;
+        }
+        GC.SuppressFinalize(this);
+    }
+
+    #region Template Aliases
+
     // Aliases for common template names that differ from GitHub's naming
     private static readonly Dictionary<string, string> TemplateAliases = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -209,76 +295,5 @@ public class GitIgnoreService : IDisposable
         ["tex"] = "TeX",
     };
 
-    public GitIgnoreService()
-    {
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "git-sith");
-        _httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
-    }
-
-    public string ResolveTemplateName(string input)
-    {
-        return TemplateAliases.TryGetValue(input, out var resolved) ? resolved : input;
-    }
-
-    public IEnumerable<IGrouping<string, KeyValuePair<string, string>>> GetAliasesGroupedByTemplate()
-    {
-        return TemplateAliases
-            .GroupBy(kvp => kvp.Value)
-            .OrderBy(g => g.Key);
-    }
-
-    public async Task<List<string>> GetAvailableTemplatesAsync()
-    {
-        try
-        {
-            var templates = await _httpClient.GetFromJsonAsync($"{GitHubApiBase}/templates", GitIgnoreJsonContext.Default.ListString);
-            return templates ?? [];
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error fetching templates: {ex.Message}");
-            return [];
-        }
-    }
-
-    public async Task<string?> GetTemplateContentAsync(string templateName)
-    {
-        try
-        {
-            var response = await _httpClient.GetFromJsonAsync(
-                $"{GitHubApiBase}/templates/{templateName}", 
-                GitIgnoreJsonContext.Default.GitIgnoreTemplate);
-            return response?.Source;
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            Console.WriteLine($"Template '{templateName}' not found.");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error fetching template '{templateName}': {ex.Message}");
-            return null;
-        }
-    }
-
-    public class GitIgnoreTemplate
-    {
-        [JsonPropertyName("name")]
-        public string Name { get; set; } = string.Empty;
-
-        [JsonPropertyName("source")]
-        public string Source { get; set; } = string.Empty;
-    }
-
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _httpClient.Dispose();
-            _disposed = true;
-        }
-        GC.SuppressFinalize(this);
-    }
+    #endregion
 }

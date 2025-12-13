@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using GitSith.Services;
 using static GitSith.Services.GitCommandService;
 
@@ -28,8 +29,13 @@ public static class IgnoreCommand
         command.AddOption(listOption);
         command.AddOption(aliasesOption);
 
-        command.SetHandler(async (templates, list, aliases) =>
+        command.SetHandler(async (context) =>
         {
+            var templates = context.ParseResult.GetValueForArgument(templatesArgument);
+            var list = context.ParseResult.GetValueForOption(listOption);
+            var aliases = context.ParseResult.GetValueForOption(aliasesOption);
+            var cancellationToken = context.GetCancellationToken();
+
             using var service = new GitIgnoreService();
 
             if (aliases)
@@ -38,22 +44,22 @@ public static class IgnoreCommand
             }
             else if (list)
             {
-                await ListTemplatesAsync(service);
+                await ListTemplatesAsync(service, cancellationToken);
             }
             else if (templates.Length > 0)
             {
-                await AddTemplatesAsync(service, templates);
+                await AddTemplatesAsync(service, templates, cancellationToken);
             }
             else
             {
-                await IgnoreEverythingAsync();
+                await IgnoreEverythingAsync(cancellationToken);
             }
-        }, templatesArgument, listOption, aliasesOption);
+        });
 
         return command;
     }
 
-    private static async Task IgnoreEverythingAsync()
+    private static async Task IgnoreEverythingAsync(CancellationToken cancellationToken = default)
     {
         const string gitignorePath = ".gitignore";
         
@@ -72,7 +78,7 @@ public static class IgnoreCommand
             !.gitignore
             """;
 
-        await File.WriteAllTextAsync(gitignorePath, content + Environment.NewLine);
+        await File.WriteAllTextAsync(gitignorePath, content + Environment.NewLine, cancellationToken);
         
         Console.WriteLine("The dark side clouds everything...");
         Console.WriteLine($"✓ Created {gitignorePath} that ignores all files");
@@ -95,10 +101,10 @@ public static class IgnoreCommand
         }
     }
 
-    private static async Task ListTemplatesAsync(GitIgnoreService service)
+    private static async Task ListTemplatesAsync(GitIgnoreService service, CancellationToken cancellationToken = default)
     {
         Console.WriteLine("Fetching available templates...");
-        var templates = await service.GetAvailableTemplatesAsync();
+        var templates = await service.GetAvailableTemplatesAsync(cancellationToken);
 
         if (templates.Count == 0)
         {
@@ -129,12 +135,12 @@ public static class IgnoreCommand
         }
     }
 
-    private static async Task AddTemplatesAsync(GitIgnoreService service, string[] templates)
+    private static async Task AddTemplatesAsync(GitIgnoreService service, string[] templates, CancellationToken cancellationToken = default)
     {
         const string gitignorePath = ".gitignore";
 
         // Check if we're in a git repository (works from any subdirectory)
-        var repoCheck = await RunGitCommandAsync("rev-parse", "--is-inside-work-tree");
+        var repoCheck = await RunGitCommandAsync(cancellationToken, "rev-parse", "--is-inside-work-tree");
         if (!repoCheck.Success || repoCheck.Output.Trim() != "true")
         {
             Console.WriteLine("Error: Not in a git repository. Run 'git init' first.");
@@ -155,7 +161,7 @@ public static class IgnoreCommand
             
             Console.Write($"  Fetching '{displayName}'... ");
             
-            var content = await service.GetTemplateContentAsync(resolvedTemplate);
+            var content = await service.GetTemplateContentAsync(resolvedTemplate, cancellationToken);
             
             if (content != null)
             {
@@ -173,7 +179,7 @@ public static class IgnoreCommand
         {
             // Append to .gitignore
             var fullContent = string.Join("\n", contents);
-            await File.AppendAllTextAsync(gitignorePath, fullContent);
+            await File.AppendAllTextAsync(gitignorePath, fullContent, cancellationToken);
 
             Console.WriteLine($"\n✓ Successfully added {contents.Count} template(s) to {gitignorePath}");
         }

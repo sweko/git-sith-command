@@ -2,32 +2,45 @@ using System.Diagnostics;
 
 namespace GitSith.Services;
 
-public class GitCommandResult
-{
-    public bool Success { get; set; }
-    public string Output { get; set; } = string.Empty;
-    public string Error { get; set; } = string.Empty;
-    public int ExitCode { get; set; }
-}
+public record GitCommandResult(
+    bool Success,
+    string Output,
+    string Error,
+    int ExitCode
+);
 
 public static class GitCommandService
 {
     public static async Task<GitCommandResult> RunGitCommandAsync(params string[] args)
     {
-        return await RunCommandAsync("git", null, args);
+        return await RunCommandAsync("git", null, CancellationToken.None, args);
+    }
+
+    public static async Task<GitCommandResult> RunGitCommandAsync(CancellationToken cancellationToken, params string[] args)
+    {
+        return await RunCommandAsync("git", null, cancellationToken, args);
     }
 
     public static async Task<GitCommandResult> RunGitCommandInDirAsync(string workingDirectory, params string[] args)
     {
-        return await RunCommandAsync("git", workingDirectory, args);
+        return await RunCommandAsync("git", workingDirectory, CancellationToken.None, args);
     }
 
-    public static async Task<bool> CheckCommandExistsAsync(string command)
+    public static async Task<GitCommandResult> RunGitCommandInDirAsync(string workingDirectory, CancellationToken cancellationToken, params string[] args)
+    {
+        return await RunCommandAsync("git", workingDirectory, cancellationToken, args);
+    }
+
+    public static async Task<bool> CheckCommandExistsAsync(string command, CancellationToken cancellationToken = default)
     {
         try
         {
-            var result = await RunCommandAsync(command, null, "--version");
+            var result = await RunCommandAsync(command, null, cancellationToken, "--version");
             return result.Success;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
         }
         catch
         {
@@ -35,7 +48,7 @@ public static class GitCommandService
         }
     }
 
-    public static async Task<GitCommandResult> RunCommandAsync(string command, string? workingDirectory, params string[] args)
+    public static async Task<GitCommandResult> RunCommandAsync(string command, string? workingDirectory, CancellationToken cancellationToken, params string[] args)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -59,17 +72,27 @@ public static class GitCommandService
         using var process = new Process { StartInfo = startInfo };
         process.Start();
 
-        var output = await process.StandardOutput.ReadToEndAsync();
-        var error = await process.StandardError.ReadToEndAsync();
+        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-        await process.WaitForExitAsync();
-
-        return new GitCommandResult
+        try
         {
-            Success = process.ExitCode == 0,
-            Output = output,
-            Error = error,
-            ExitCode = process.ExitCode
-        };
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+            throw;
+        }
+
+        var output = await outputTask;
+        var error = await errorTask;
+
+        return new GitCommandResult(
+            Success: process.ExitCode == 0,
+            Output: output,
+            Error: error,
+            ExitCode: process.ExitCode
+        );
     }
 }

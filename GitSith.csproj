@@ -12,7 +12,7 @@
     
     <!-- NuGet Package Metadata -->
     <PackageId>GitSith</PackageId>
-    <Version>0.0.5</Version>
+    <Version>0.0.9</Version>
     <Authors>Wekoslav Stefanovski</Authors>
     <Description>A developer-oriented Git power tool for common tasks. Because the dark side has better tools.</Description>
     <PackageTags>git;cli;tool;gitignore</PackageTags>

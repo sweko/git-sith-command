@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using static GitSith.Services.GitCommandService;
 
 namespace GitSith.Commands;
@@ -26,18 +27,21 @@ public static class PurgeCommand
         command.AddArgument(fileArgument);
         command.AddOption(confirmOption);
 
-        command.SetHandler(async (file, confirm) =>
+        command.SetHandler(async (context) =>
         {
-            await ExecutePurgeAsync(file, confirm);
-        }, fileArgument, confirmOption);
+            var file = context.ParseResult.GetValueForArgument(fileArgument);
+            var confirm = context.ParseResult.GetValueForOption(confirmOption);
+            var cancellationToken = context.GetCancellationToken();
+            await ExecutePurgeAsync(file, confirm, cancellationToken);
+        });
 
         return command;
     }
 
-    private static async Task ExecutePurgeAsync(string filePath, bool confirm)
+    private static async Task ExecutePurgeAsync(string filePath, bool confirm, CancellationToken cancellationToken = default)
     {
         // Check if we're in a git repository and get the root
-        var repoCheck = await RunGitCommandAsync("rev-parse", "--is-inside-work-tree");
+        var repoCheck = await RunGitCommandAsync(cancellationToken, "rev-parse", "--is-inside-work-tree");
         if (!repoCheck.Success || repoCheck.Output.Trim() != "true")
         {
             Console.WriteLine("Error: Not in a git repository.");
@@ -45,7 +49,7 @@ public static class PurgeCommand
         }
 
         // Get the repository root directory
-        var repoRootResult = await RunGitCommandAsync("rev-parse", "--show-toplevel");
+        var repoRootResult = await RunGitCommandAsync(cancellationToken, "rev-parse", "--show-toplevel");
         if (!repoRootResult.Success)
         {
             Console.WriteLine("Error: Could not determine repository root.");
@@ -60,7 +64,7 @@ public static class PurgeCommand
         relativePath = relativePath.Replace("\\", "/");
 
         // Check if git-filter-repo is available (preferred method)
-        var hasFilterRepo = await CheckCommandExistsAsync("git-filter-repo");
+        var hasFilterRepo = await CheckCommandExistsAsync("git-filter-repo", cancellationToken);
 
         Console.WriteLine();
         Console.WriteLine($"Purging '{relativePath}' from history...");
@@ -97,11 +101,11 @@ public static class PurgeCommand
         bool success;
         if (hasFilterRepo)
         {
-            success = await PurgeWithFilterRepoAsync(relativePath, repoRoot);
+            success = await PurgeWithFilterRepoAsync(relativePath, repoRoot, cancellationToken);
         }
         else
         {
-            success = await PurgeWithFilterBranchAsync(relativePath, repoRoot);
+            success = await PurgeWithFilterBranchAsync(relativePath, repoRoot, cancellationToken);
         }
 
         if (success)
@@ -126,12 +130,12 @@ public static class PurgeCommand
         }
     }
 
-    private static async Task<bool> PurgeWithFilterRepoAsync(string filePath, string repoRoot)
+    private static async Task<bool> PurgeWithFilterRepoAsync(string filePath, string repoRoot, CancellationToken cancellationToken = default)
     {
         Console.WriteLine("Using git-filter-repo to purge file...");
         Console.WriteLine();
 
-        var result = await RunGitCommandInDirAsync(repoRoot, "filter-repo", "--invert-paths", "--path", filePath, "--force");
+        var result = await RunGitCommandInDirAsync(repoRoot, cancellationToken, "filter-repo", "--invert-paths", "--path", filePath, "--force");
 
         if (!result.Success)
         {
@@ -147,7 +151,7 @@ public static class PurgeCommand
         return true;
     }
 
-    private static async Task<bool> PurgeWithFilterBranchAsync(string filePath, string repoRoot)
+    private static async Task<bool> PurgeWithFilterBranchAsync(string filePath, string repoRoot, CancellationToken cancellationToken = default)
     {
         Console.WriteLine("Using git filter-branch to purge file...");
         Console.WriteLine("(Consider installing git-filter-repo for better performance)");
@@ -156,6 +160,7 @@ public static class PurgeCommand
         // Path is already normalized with forward slashes
         var result = await RunGitCommandInDirAsync(
             repoRoot,
+            cancellationToken,
             "filter-branch",
             "--force",
             "--index-filter",
@@ -183,13 +188,13 @@ public static class PurgeCommand
 
         // Clean up the backup refs created by filter-branch
         Console.WriteLine("Cleaning up backup refs...");
-        await RunGitCommandInDirAsync(repoRoot, "for-each-ref", "--format=%(refname)", "refs/original/", 
+        await RunGitCommandInDirAsync(repoRoot, cancellationToken, "for-each-ref", "--format=%(refname)", "refs/original/", 
             "|", "xargs", "-n", "1", "git", "update-ref", "-d");
         
         // Force garbage collection
         Console.WriteLine("Running garbage collection...");
-        await RunGitCommandInDirAsync(repoRoot, "reflog", "expire", "--expire=now", "--all");
-        await RunGitCommandInDirAsync(repoRoot, "gc", "--prune=now", "--aggressive");
+        await RunGitCommandInDirAsync(repoRoot, cancellationToken, "reflog", "expire", "--expire=now", "--all");
+        await RunGitCommandInDirAsync(repoRoot, cancellationToken, "gc", "--prune=now", "--aggressive");
 
         return true;
     }
