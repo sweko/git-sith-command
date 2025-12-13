@@ -4,12 +4,20 @@ using System.Text.Json.Serialization;
 
 namespace GitSith.Services;
 
+/// <summary>
+/// JSON serialization context for GitIgnore API responses.
+/// Uses source generation for AOT compatibility.
+/// </summary>
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(GitIgnoreService.GitIgnoreTemplate))]
 internal partial class GitIgnoreJsonContext : JsonSerializerContext
 {
 }
 
+/// <summary>
+/// Service for fetching .gitignore templates from the GitHub API.
+/// Provides template listing, content retrieval, and alias resolution.
+/// </summary>
 public class GitIgnoreService : IDisposable
 {
     private readonly HttpClient _httpClient;
@@ -21,6 +29,9 @@ public class GitIgnoreService : IDisposable
         TypeInfoResolver = GitIgnoreJsonContext.Default
     };
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GitIgnoreService"/> class.
+    /// </summary>
     public GitIgnoreService()
     {
         _httpClient = new HttpClient();
@@ -28,11 +39,31 @@ public class GitIgnoreService : IDisposable
         _httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
     }
 
+    /// <summary>
+    /// Resolves a template alias to its canonical GitHub template name.
+    /// </summary>
+    /// <param name="input">The template name or alias to resolve (case-insensitive).</param>
+    /// <returns>
+    /// The canonical GitHub template name if an alias exists; otherwise, the original input.
+    /// </returns>
+    /// <example>
+    /// <code>
+    /// service.ResolveTemplateName("csharp");  // Returns "VisualStudio"
+    /// service.ResolveTemplateName("Node");    // Returns "Node"
+    /// </code>
+    /// </example>
     public string ResolveTemplateName(string input)
     {
         return TemplateAliases.TryGetValue(input, out var resolved) ? resolved : input;
     }
 
+    /// <summary>
+    /// Gets all template aliases grouped by their resolved template name.
+    /// </summary>
+    /// <returns>
+    /// An enumerable of groupings where the key is the canonical template name
+    /// and the values are the alias entries that map to it.
+    /// </returns>
     public IEnumerable<IGrouping<string, KeyValuePair<string, string>>> GetAliasesGroupedByTemplate()
     {
         return TemplateAliases
@@ -40,6 +71,13 @@ public class GitIgnoreService : IDisposable
             .OrderBy(g => g.Key);
     }
 
+    /// <summary>
+    /// Retrieves the list of available .gitignore templates from the GitHub API.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// A list of available template names, or an empty list if the request fails.
+    /// </returns>
     public async Task<List<string>> GetAvailableTemplatesAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -59,6 +97,14 @@ public class GitIgnoreService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Retrieves the content of a specific .gitignore template from the GitHub API.
+    /// </summary>
+    /// <param name="templateName">The exact name of the template (case-sensitive, e.g., "VisualStudio", "Node").</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// The template content as a string, or <c>null</c> if the template was not found or an error occurred.
+    /// </returns>
     public async Task<string?> GetTemplateContentAsync(string templateName, CancellationToken cancellationToken = default)
     {
         try
@@ -86,15 +132,27 @@ public class GitIgnoreService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Represents a .gitignore template from the GitHub API.
+    /// </summary>
     public class GitIgnoreTemplate
     {
+        /// <summary>
+        /// Gets or sets the name of the template.
+        /// </summary>
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Gets or sets the .gitignore content of the template.
+        /// </summary>
         [JsonPropertyName("source")]
         public string Source { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// Releases the resources used by the <see cref="GitIgnoreService"/>.
+    /// </summary>
     public void Dispose()
     {
         if (!_disposed)

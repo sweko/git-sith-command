@@ -3,8 +3,16 @@ using System.CommandLine.Invocation;
 
 namespace GitSith.Commands;
 
+/// <summary>
+/// Provides the help command for displaying usage information about git-sith commands.
+/// </summary>
 public static class HelpCommand
 {
+    /// <summary>
+    /// Creates the help command that displays usage information.
+    /// </summary>
+    /// <param name="rootCommand">The root command to delegate help requests to.</param>
+    /// <returns>A configured <see cref="Command"/> for displaying help.</returns>
     public static Command Create(RootCommand rootCommand)
     {
         var commandArgument = new Argument<string?>(

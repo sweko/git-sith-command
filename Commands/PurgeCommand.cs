@@ -4,8 +4,19 @@ using static GitSith.Services.GitCommandService;
 
 namespace GitSith.Commands;
 
+/// <summary>
+/// Provides the purge command for completely removing files from git history.
+/// Uses git-filter-repo if available, otherwise falls back to git filter-branch.
+/// </summary>
 public static class PurgeCommand
 {
+    /// <summary>
+    /// Creates the purge command with its arguments and options.
+    /// </summary>
+    /// <returns>A configured <see cref="Command"/> for purging files from history.</returns>
+    /// <remarks>
+    /// Aliases: obliterate, destroy, 66, order-66, damnatio-memoriae, memory-hole
+    /// </remarks>
     public static Command Create()
     {
         var command = new Command("purge", "Remove a file from git history completely - this is the nuclear option");
@@ -38,6 +49,12 @@ public static class PurgeCommand
         return command;
     }
 
+    /// <summary>
+    /// Executes the file purge operation, removing a file from all git history.
+    /// </summary>
+    /// <param name="filePath">The path to the file to purge.</param>
+    /// <param name="confirm">If <c>true</c>, prompts the user for confirmation before proceeding.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     private static async Task ExecutePurgeAsync(string filePath, bool confirm, CancellationToken cancellationToken = default)
     {
         // Check if we're in a git repository and get the root
@@ -130,6 +147,13 @@ public static class PurgeCommand
         }
     }
 
+    /// <summary>
+    /// Purges a file from history using the git-filter-repo tool (preferred method).
+    /// </summary>
+    /// <param name="filePath">The repository-relative path to purge.</param>
+    /// <param name="repoRoot">The absolute path to the repository root.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns><c>true</c> if the purge succeeded; otherwise, <c>false</c>.</returns>
     private static async Task<bool> PurgeWithFilterRepoAsync(string filePath, string repoRoot, CancellationToken cancellationToken = default)
     {
         Console.WriteLine("Using git-filter-repo to purge file...");
@@ -151,6 +175,17 @@ public static class PurgeCommand
         return true;
     }
 
+    /// <summary>
+    /// Purges a file from history using git filter-branch (fallback method).
+    /// </summary>
+    /// <param name="filePath">The repository-relative path to purge.</param>
+    /// <param name="repoRoot">The absolute path to the repository root.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns><c>true</c> if the purge succeeded; otherwise, <c>false</c>.</returns>
+    /// <remarks>
+    /// This method is slower than git-filter-repo and is used as a fallback
+    /// when git-filter-repo is not installed.
+    /// </remarks>
     private static async Task<bool> PurgeWithFilterBranchAsync(string filePath, string repoRoot, CancellationToken cancellationToken = default)
     {
         Console.WriteLine("Using git filter-branch to purge file...");

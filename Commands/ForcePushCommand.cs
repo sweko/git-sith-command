@@ -5,8 +5,14 @@ using static GitSith.Services.GitCommandService;
 
 namespace GitSith.Commands;
 
+/// <summary>
+/// Provides the force-push command that stages, commits, and pushes changes in one step.
+/// </summary>
 public static class ForcePushCommand
 {
+    /// <summary>
+    /// Collection of Sith-themed commit messages used when no message is provided.
+    /// </summary>
     private static readonly string[] SithMessages =
     [
         "Do it.",
@@ -21,6 +27,13 @@ public static class ForcePushCommand
         "Execute Order 66"
     ];
 
+    /// <summary>
+    /// Creates the force-push command with its arguments and options.
+    /// </summary>
+    /// <returns>A configured <see cref="Command"/> for the force-push operation.</returns>
+    /// <remarks>
+    /// Aliases: force, push
+    /// </remarks>
     public static Command Create()
     {
         var command = new Command("force-push", "Stage all changes, commit with a message, and push to remote");
@@ -53,6 +66,12 @@ public static class ForcePushCommand
         return command;
     }
 
+    /// <summary>
+    /// Executes the force-push workflow: stage all changes, commit, and push.
+    /// </summary>
+    /// <param name="messageParts">The commit message parts to join, or empty for a random Sith quote.</param>
+    /// <param name="weakling">If <c>true</c>, performs a regular push instead of force push.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     private static async Task ExecuteForcePushAsync(string[] messageParts, bool weakling, CancellationToken cancellationToken = default)
     {
         // Combine all message parts into a single message, or pick a random Sith quote

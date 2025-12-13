@@ -5,8 +5,16 @@ using static GitSith.Services.GitCommandService;
 
 namespace GitSith.Commands;
 
+/// <summary>
+/// Provides the ignore command for managing .gitignore templates.
+/// Fetches templates from the GitHub API and supports template aliases.
+/// </summary>
 public static class IgnoreCommand
 {
+    /// <summary>
+    /// Creates the ignore command with its arguments and options.
+    /// </summary>
+    /// <returns>A configured <see cref="Command"/> for managing .gitignore templates.</returns>
     public static Command Create()
     {
         var command = new Command("ignore", "Manage .gitignore templates");
@@ -59,6 +67,10 @@ public static class IgnoreCommand
         return command;
     }
 
+    /// <summary>
+    /// Creates a .gitignore file that ignores all files (the "dark side" option).
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     private static async Task IgnoreEverythingAsync(CancellationToken cancellationToken = default)
     {
         const string gitignorePath = ".gitignore";
@@ -86,6 +98,10 @@ public static class IgnoreCommand
         Console.WriteLine("\"Your feeble skills are no match for the power of the dark side.\"");
     }
 
+    /// <summary>
+    /// Displays all available template aliases grouped by their resolved template name.
+    /// </summary>
+    /// <param name="service">The GitIgnore service instance.</param>
     private static void ListAliases(GitIgnoreService service)
     {
         Console.WriteLine("Available template aliases:");
@@ -101,6 +117,11 @@ public static class IgnoreCommand
         }
     }
 
+    /// <summary>
+    /// Fetches and displays all available .gitignore templates from GitHub.
+    /// </summary>
+    /// <param name="service">The GitIgnore service instance.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     private static async Task ListTemplatesAsync(GitIgnoreService service, CancellationToken cancellationToken = default)
     {
         Console.WriteLine("Fetching available templates...");
@@ -135,6 +156,12 @@ public static class IgnoreCommand
         }
     }
 
+    /// <summary>
+    /// Fetches one or more templates and appends them to the .gitignore file.
+    /// </summary>
+    /// <param name="service">The GitIgnore service instance.</param>
+    /// <param name="templates">The template names or aliases to add.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     private static async Task AddTemplatesAsync(GitIgnoreService service, string[] templates, CancellationToken cancellationToken = default)
     {
         const string gitignorePath = ".gitignore";
